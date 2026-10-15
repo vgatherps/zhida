@@ -1,0 +1,15 @@
+// Reset a half-open connection, then open another with the same client ISN.
+// The new server ISN is learned even though the client SYN sequence repeats.
+// Its duplicate SYN must still get the same SYN-ACK ISN.
+// expect-pass
+
+0     < S 0:0(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,sackOK,eol,eol>
++0    < R 1:1(0) win 0
+
++0.1  < S 0:0(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,sackOK,eol,eol>
++0.1  < S 0:0(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,sackOK,eol,eol>
++0    < . 1:1(0) ack 1 win 64240
++0    < R. 1:1(0) ack 1 win 0

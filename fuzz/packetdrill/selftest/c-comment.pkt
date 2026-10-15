@@ -1,0 +1,7 @@
+// Runner self-test: a C-style comment, which can span lines and hide events from the
+// line check. run.sh must refuse this script without running it.
+// expect-refused: :5: contains
+
+0   < S 0:0(0) win 64240 <mss 1460> /* hidden
++0  < R. 1:1(0) ack 1 win 0 */
++0  > S. 0:0(0) ack 1 win 65535 <mss 1460>

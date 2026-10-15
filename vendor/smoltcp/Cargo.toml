@@ -1,0 +1,76 @@
+[package]
+edition = "2024"
+rust-version = "1.91"
+name = "smoltcp"
+version = "0.14.0"
+authors = ["whitequark <whitequark@whitequark.org>"]
+autolib = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+description = "Zhida's fork of smoltcp for IPv4 TCP and UDP over Ethernet."
+homepage = "https://github.com/smoltcp-rs/smoltcp"
+documentation = "https://docs.rs/smoltcp/"
+keywords = [
+    "ip",
+    "tcp",
+    "udp",
+    "ethernet",
+    "network",
+]
+categories = [
+    "embedded",
+    "network-programming",
+]
+license = "0BSD"
+repository = "https://github.com/smoltcp-rs/smoltcp.git"
+
+[features]
+auto-icmp-echo-reply = []
+medium-ip = []
+udp-set = []
+
+[lib]
+name = "smoltcp"
+path = "src/lib.rs"
+
+[[test]]
+name = "tcp_isn"
+path = "tests/tcp_isn.rs"
+required-features = ["medium-ip"]
+
+[[test]]
+name = "rx_buf_from_vec"
+path = "tests/rx_buf_from_vec.rs"
+
+[dependencies.byteorder]
+version = "1.0"
+default-features = false
+
+[dependencies.heapless]
+version = "0.9"
+
+[dependencies.managed]
+version = "0.8"
+features = ["std"]
+default-features = false
+
+[dev-dependencies.rand]
+version = "0.8"
+
+[dev-dependencies.rand_chacha]
+version = "0.3.1"
+
+[dev-dependencies.rstest]
+version = "0.17"
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+priority = 0
+check-cfg = [
+    "cfg(ci_forbid_unused)",
+]
+
+[profile.release]
+debug = 2

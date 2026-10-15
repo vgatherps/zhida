@@ -1,0 +1,6 @@
+// Runner self-test: validate --listeners and pass accepted flags to tap-echo.
+// expect-refused: :3: tap-echo header --listeners needs a positive integer
+// tap-echo: --listeners 00
+
+0   < S 0:0(0) win 64240 <mss 1460,sackOK,TS val 1000 ecr 0,nop,wscale 7>
++0  > S. 0:0(0) ack 1 win 29200 <mss 1460,wscale 0,sackOK,TS val 100 ecr 1000,eol>

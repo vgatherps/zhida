@@ -1,0 +1,27 @@
+// A Linux client's last data segment carries FIN (10 bytes, FIN|PSH|ACK). Zhida echoes
+// the 10 bytes, acknowledges the FIN and sends its own FIN, all in one segment; the
+// client's ACK closes the connection, which a SYN-ACK to a new SYN on the 4-tuple proves.
+// Handshake, ISNs, window 32768 and the 100 ms gap before a new SYN: see
+// handshake-linux-options.pkt and echo-and-close.pkt. smoltcp 0.14.0 src/socket/tcp.rs:
+// - The data segment moves Established to CloseWait (1991-1996: RCV.NXT counts the FIN).
+//   It carries payload, so it starts the 10 ms delayed-ACK timer (2254-2262) and that
+//   turn's egress sends nothing: no data queued, ACK delayed, no window update outside
+//   the receiving states (2415-2431).
+// - EchoServer::step then queues the 10 bytes and, in CloseWait with nothing left to read,
+//   calls close() (crates/tap-echo/src/lib.rs, step; tcp.rs 1094: LastAck). The next turn
+//   sends the data (2521); having sent all of the tx buffer in LastAck it sets FIN, not PSH
+//   (2724-2728), and the ACK field covers the client's FIN (2564). One segment: the
+//   delayed ACK never fires on its own.
+// - The client's ACK of that FIN closes the socket (LastAck 2040-2044) and step listens
+//   again. Had it been ignored, the SYN would meet the LastAck socket and be dropped
+//   (1660-1663) and the FIN would come back after the 1 s RTO instead of the SYN-ACK.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    < FP. 1:11(10) ack 1 win 502
++0    > F. 1:11(10) ack 12 win 32768
++0    < . 12:12(0) ack 12 win 502
+
++0.1  < S 5000:5000(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>

@@ -1,0 +1,63 @@
+// tolerance_usecs: 4000
+// Zhida delays the ACK of data it cannot answer with data by 10 ms; a second segment
+// inside those 10 ms does not restart the timer, so one ACK covers both; once more than
+// one MSS of data is unacknowledged it ACKs at once. RFC 9293 3.8.6.3 (SHLD-18/19)
+// allows all three; Linux delays ACKs too, with a longer minimum (TCP_ATO_MIN, 40 ms).
+// smoltcp 0.14.0 src/socket/tcp.rs; SYN-ACK and ISN conventions as in
+// handshake-linux-options.pkt, data path as in echo-and-close.pkt.
+// - The peer advertises 16 units with scale 7, or 2048 bytes, from the
+//   handshake ACK onward. Two 1024-byte echoes fill that window. Cubic's
+//   1 MiB initial window does not constrain them. With nothing ACKed,
+//   later echoes wait for peer window space, leaving only pure ACKs.
+// - Timer: the first segment after an ACK starts the delayed-ACK timer at now + 10 ms
+//   (ACK_DELAY_DEFAULT 300, 617, 2254-2262); a later segment while it waits leaves the
+//   deadline (2267-2270); dispatch sends the ACK once it expires (2375-2381, 2524).
+//   Sending any segment idles the timer (2797-2807).
+// - Margins. packetdrill's tolerance is max(4 ms, 12.5% of the gap from the previous
+//   event) (config.c 295-297, run.c 202-209), 4 ms for every outbound check here. A
+//   relative ("+") outbound event is anchored to the moment packetdrill reaches it, an
+//   inbound one after an inbound one to that event's script time; an absolute event is
+//   not anchored (run.c 313-343).
+//   1. 10 ms delay: the ACK of the first 100 bytes. An immediate ACK would be 10 ms
+//      early, 6 ms outside the tolerance.
+//   2. Not restarted: 100 bytes at 0.100 s and 100 more at 0.106 s, one ACK at 0.110 s,
+//      all three absolute, so no packetdrill pause can move the expectation. A timer
+//      restarted by the second segment would fire at or after 0.116 s, at least 6 ms
+//      late, 2 ms outside the tolerance. The second segment must reach Zhida before the
+//      first one's timer fires: 4 ms of slack for its processing lagging the first's.
+//      The 6 ms between them is the whole budget: the restart's lateness and the slack
+//      add up to the 10 ms timer, and the tolerance takes 4 ms of the lateness.
+//   3. At once: a segment arriving while the timer waits forces it to expire when more
+//      than the receive MSS estimate (the largest segment received, 1024) is
+//      unacknowledged: 100 bytes at 0.210 s and 1024 at 0.211 s, 1124 bytes, ACK
+//      expected at 0.211 s, all absolute. Without the forced expiry the ACK would come
+//      at 0.220 s or later, at least 9 ms late, 5 ms outside the tolerance, whatever
+//      packetdrill's pauses. Whether both segments are processed in one turn does not
+//      matter (Waiting, then Immediate).
+// - Windows on the ACKs of checks 2 and 3 are not checked: step drains the rx buffer only
+//   after a turn's egress (lib.rs 174-175), so they depend on which turn read the last
+//   segment, which says nothing about delayed ACKs.
+// - The RST ends the run with data still queued (1895-1900).
+// Receive window 23040 units: the peer's MSS 1024 caps each of the 90 admitted frames
+// (128 KiB / 1460) at 1024 bytes, 92160 bytes >> shift 2. The SYN-ACK stays 65535
+// (unscaled cap); 92160 < 2 x 65535, so no window-update ACK follows the handshake.
+
+0      < S 0:0(0) win 64240 <mss 1024,nop,nop,sackOK,nop,wscale 7>
++0     > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0     < . 1:1(0) ack 1 win 16
++0     < P. 1:1025(1024) ack 1 win 16
++0     > P. 1:1025(1024) ack 1025 win 23040
++0     < P. 1025:2049(1024) ack 1 win 16
++0     > P. 1025:2049(1024) ack 2049 win 23040
+
++0     < P. 2049:2149(100) ack 1 win 16
++0.01  > . 2049:2049(0) ack 2149 win 23040
+
+0.100  < P. 2149:2249(100) ack 1 win 16
+0.106  < P. 2249:2349(100) ack 1 win 16
+0.110  > . 2049:2049(0) ack 2349
+
+0.210  < P. 2349:2449(100) ack 1 win 16
+0.211  < P. 2449:3473(1024) ack 1 win 16
+0.211  > . 2049:2049(0) ack 3473
++0     < R. 3473:3473(0) ack 2049 win 0

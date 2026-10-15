@@ -1,0 +1,42 @@
+// tap-echo: --close-after 10
+// tolerance_usecs: 4000
+// Zhida closes first. tap-echo echoes 10 bytes per connection, then closes: the Linux
+// client's 20 bytes come back as 10 bytes carrying FIN. The client ACKs the FIN (Zhida
+// in FinWait2) and, half-closed, keeps sending: Zhida ACKs those 100 bytes and discards
+// them, so its window stays fully open. The client's FIN gets an immediate ACK and moves
+// Zhida to TIME-WAIT, which the re-ACK of the client's retransmitted FIN shows;
+// time-wait.pkt covers that state's timer. Handshake and window 32768: see
+// handshake-linux-options.pkt and echo-and-close.pkt.
+// smoltcp 0.14.0 src/socket/tcp.rs unless noted; EchoServer is crates/tap-echo/src/lib.rs.
+// - The 20 bytes start the delayed-ACK timer (2254-2262). EchoServer::step queues 10,
+//   calls close() (Established to FinWait1, 1093) and reads and discards the other 10. The
+//   next turn sends the 10 bytes; they empty the tx buffer in FinWait1, so FIN rather than
+//   PSH (2724-2728). The ACK field covers all 20 bytes read (1324, 2564) and the window is
+//   the whole rx buffer, 131072 >> 2.
+// - The client's ACK of the FIN: FinWait1 to FinWait2 (2000-2004), nothing to send.
+// - The 100 bytes in FinWait2 (2019) start the delayed-ACK timer; step discards them, and
+//   the ACK goes out when the timer expires 10 ms later (2524) with window 32768. Unread,
+//   they would leave (131072 - 100) >> 2, 32743. Nothing is sent before: no data, no FIN
+//   pending (2349-2372), and a window that only returns to its last value is no update
+//   (2415-2431).
+// - The client's FIN: FinWait2 to TimeWait (2021-2027). A FIN carries no payload, so
+//   process returns before the delayed-ACK code (2206-2209) and the same turn's egress
+//   ACKs it (2524; timer idle, 2377).
+// - The retransmitted FIN lies one below RCV.NXT, outside the window (1724-1729): in
+//   TIME-WAIT its ACK restarts the close timer and the FIN gets an ACK without rate
+//   limiting. Had Zhida closed and listened again instead, the Listen socket would
+//   refuse a segment with ACK (1563-1567) and the interface would answer RST 12:12
+//   (src/iface/interface/tcp.rs 43-56; rst_reply, 1459-1473).
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    < P. 1:21(20) ack 1 win 502
++0    > F. 1:11(10) ack 21 win 32768
++0    < . 21:21(0) ack 12 win 502
++0.1  < P. 21:121(100) ack 12 win 502
++0.01 > . 12:12(0) ack 121 win 32768
++0.1  < F. 121:121(0) ack 12 win 502
++0    > . 12:12(0) ack 122 win 32768
++0.1  < F. 121:121(0) ack 12 win 502
++0    > . 12:12(0) ack 122 win 32768

@@ -1,0 +1,7 @@
+// Runner self-test: two valid tolerance_usecs headers must be refused without running.
+// tolerance_usecs: 4000
+// tolerance_usecs: 25000
+// expect-refused: more than one tolerance_usecs header
+
+0   < S 0:0(0) win 64240 <mss 1460,sackOK,TS val 1000 ecr 0,nop,wscale 7>
++0  > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,TS val 100 ecr 1000,eol>

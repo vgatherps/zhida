@@ -1,0 +1,14 @@
+[workspace]
+members = ["crates/zhida-buffer", "crates/zhida-dpdk-sys", "crates/dpdk-smoltcp", "crates/tap-echo", "crates/ws-autobahn", "crates/stack-stream", "crates/memif-bench", "crates/binance-feed", "crates/nic-runner", "crates/netconf", "crates/netconf-open", "crates/sockperf-wire", "test-support", "test-support/kit", "test-support/macros"]
+exclude = ["vendor/smoltcp"]
+resolver = "2"
+
+[workspace.package]
+license = "GPL-3.0-only"
+
+[workspace.lints.clippy]
+doc_lazy_continuation = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

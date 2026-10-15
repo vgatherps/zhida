@@ -1,0 +1,14 @@
+[package]
+name = "zhida-test-kit"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+dpdk-smoltcp = { path = "../../crates/dpdk-smoltcp" }
+libc = "0.2"
+zhida-buffer = { path = "../../crates/zhida-buffer" }
+zhida-dpdk-sys = { path = "../../crates/zhida-dpdk-sys" }
+
+[dev-dependencies]
+zhida-test-support = { path = ".." }

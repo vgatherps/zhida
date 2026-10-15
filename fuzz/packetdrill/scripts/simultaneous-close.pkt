@@ -1,0 +1,31 @@
+// tap-echo: --close-after 10
+// Simultaneous close. tap-echo echoes 10 bytes per connection, then closes, so Zhida
+// sends the echo with FIN. The Linux client's own FIN crosses it: it acknowledges nothing
+// of Zhida's. Zhida ACKs that FIN (Closing), the client then ACKs Zhida's FIN and
+// Zhida is in TIME-WAIT: 1.5 s later it has not retransmitted its FIN, and it re-ACKs
+// the client's retransmitted FIN. Handshake and window 32768: see
+// handshake-linux-options.pkt and echo-and-close.pkt. smoltcp 0.14.0 src/socket/tcp.rs:
+// - The echo with FIN: see zhida-fin-first.pkt (FinWait1, FIN on the last data, 2724-2728).
+//   Sending it arms the retransmit timer, 1 s (2838-2843, 155-217).
+// - The client's FIN with ACK 1 is acceptable (ack not below SND.UNA, 1672-1703), lies at
+//   RCV.NXT, and does not acknowledge Zhida's FIN: FinWait1 to Closing (2006-2016).
+//   Zhida cannot send its FIN again yet (the FIN is out, 2366-2372), so the same turn
+//   sends a pure ACK of the client's FIN (2524), SEQ after Zhida's FIN.
+// - The client's ACK of Zhida's FIN: Closing to TimeWait (2029-2035), which replaces the
+//   retransmit timer by the 10 s TIME-WAIT timer (394-397). Still in Closing, Zhida would
+//   retransmit its FIN about 1 s after sending it (2474-2491), and packetdrill would read
+//   that FIN instead of the ACK expected at 1.5 s.
+// - The retransmitted client FIN sits one below RCV.NXT, so smoltcp treats it as outside the
+//   window: in TIME-WAIT its ACK restarts the timer, and the FIN gets an ACK without
+//   rate limiting.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    < P. 1:11(10) ack 1 win 502
++0    > F. 1:11(10) ack 11 win 32768
++0    < F. 11:11(0) ack 1 win 502
++0    > . 12:12(0) ack 12 win 32768
++0    < . 12:12(0) ack 12 win 502
++1.5  < F. 11:11(0) ack 12 win 502
++0    > . 12:12(0) ack 12 win 32768

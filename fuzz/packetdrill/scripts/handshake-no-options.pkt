@@ -1,0 +1,32 @@
+// A client SYN with no TCP options gets a SYN-ACK carrying only MSS: Zhida echoes no
+// window scale, SACK-permitted or timestamp option it was not offered. Zhida then sends
+// to the client's default MSS, 536 (RFC 9293 3.7.1, no MSS option), and advertises its
+// window unscaled. Linux behaves the same on all three.
+// smoltcp 0.14.0 src/socket/tcp.rs; tap-echo, EchoServer and the turn order as in
+// echo-and-close.pkt; TS and ISN conventions as in handshake-linux-options.pkt.
+// - SYN-ACK <mss 1460> only: a SYN without the options leaves remote_win_scale None and
+//   remote_has_sack false (1922-1923) and removes the TS generator (1929-1931), so the
+//   SYN-ACK echoes neither (2610-2611) and carries no TS (2570-2573); MSS is always sent
+//   (2777-2780). 24 header bytes, no EOL (src/wire/tcp.rs 998-1023, 1082-1084).
+// - Window 48240 everywhere: without client wscale the shift is 0 (1925-1927). The SYN
+//   has no MSS option, so the peer MSS 536 caps each of the 90 admitted frames
+//   (128 KiB / 1460) at 536 bytes: 90 x 536 = 48240, under u16::MAX, sent unshifted from
+//   the SYN-ACK on. No window-update ACK: the allowance equals the SYN-ACK window.
+// - Send MSS 536: remote_mss keeps DEFAULT_MSS 536 when the SYN has no MSS option (558,
+//   611, 1905-1913); with no TS the effective MSS is min(1460, 536) (2313-2320, 2630-2632).
+// - The 1000-byte echo fits the 65535-byte peer window and Cubic's 1 MiB
+//   initial window. MSS 536 splits it into 536 and 464 bytes, both at once.
+//   No Nagle hold delays the tail; PSH marks the segment emptying the TX buffer.
+// - Close as in echo-and-close.pkt (RFC 9293 FIN close).
+
+0     < S 0:0(0) win 65535
++0    > S. 0:0(0) ack 1 win 48240 <mss 1460>
++0    < . 1:1(0) ack 1 win 65535
++0    < P. 1:1001(1000) ack 1 win 65535
++0    > . 1:537(536) ack 1001 win 48240
++0    > P. 537:1001(464) ack 1001 win 48240
++0    < . 1001:1001(0) ack 1001 win 65535
++0    < F. 1001:1001(0) ack 1001 win 65535
++0    > . 1001:1001(0) ack 1002 win 48240
++0    > F. 1001:1001(0) ack 1002 win 48240
++0    < . 1002:1002(0) ack 1002 win 65535

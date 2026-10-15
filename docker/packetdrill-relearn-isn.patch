@@ -1,0 +1,81 @@
+--- a/gtests/net/packetdrill/run_packet.c
++++ b/gtests/net/packetdrill/run_packet.c
+@@ -235,6 +235,8 @@
+ 	socket->live.local.ip		= config->live_local_ip;
+ 	socket->live.local.port		= htons(config->live_bind_port);
+ 	socket->live.remote_isn		= ntohl(packet->tcp->seq);
++	socket->passive_syn_seq		= socket->live.remote_isn;
++	socket->passive_synack_seq	= socket->live.remote_isn;
+ 	socket->fd.live_fd		= -1;
+ 
+ 	if (DEBUG_LOGGING) {
+@@ -1803,14 +1805,6 @@
+ 	int expected_payload_len = packet_payload_len(packet);
+ 	int sniffed_payload_len = 0;
+ 
+-	if ((socket->state == SOCKET_PASSIVE_PACKET_RECEIVED) &&
+-	    packet->tcp && packet->tcp->syn && packet->tcp->ack) {
+-		/* Script says we should see an outbound server SYNACK. */
+-		socket->script.local_isn = ntohl(packet->tcp->seq);
+-		DEBUGP("SYNACK script.local_isn: %u\n",
+-		       socket->script.local_isn);
+-	}
+-
+ 	DEBUGP("Expecting packet with payload %d bytes\n",
+ 	       expected_payload_len);
+ 	/* To allow remote mode execution of scripts that expect TSO or GSO
+@@ -1833,8 +1827,15 @@
+ 		live_payload = packet_payload_len(live_packet);
+ 		DEBUGP("Sniffed packet with payload %d bytes\n", live_payload);
+ 
+-		if ((socket->state == SOCKET_PASSIVE_PACKET_RECEIVED) &&
+-		    packet->tcp && packet->tcp->syn && packet->tcp->ack) {
++		/* Learn only the SYNACK acknowledging the pending new SYN. */
++		if ((socket->state == SOCKET_PASSIVE_PACKET_RECEIVED ||
++		     socket->passive_syn_pending) &&
++		    packet->tcp && packet->tcp->syn && packet->tcp->ack &&
++		    live_packet->tcp && live_packet->tcp->syn && live_packet->tcp->ack &&
++		    ntohl(live_packet->tcp->ack_seq) == socket->passive_syn_seq + 1) {
++			socket->script.local_isn = ntohl(packet->tcp->seq);
++			socket->passive_synack_seq = socket->passive_syn_seq;
++			socket->passive_syn_pending = false;
+ 			socket->state = SOCKET_PASSIVE_SYNACK_SENT;
+ 			socket->live.local_isn = ntohl(live_packet->tcp->seq);
+ 			DEBUGP("SYNACK live.local_isn: %u\n",
+@@ -2037,6 +2038,20 @@
+ 	if (map_inbound_packet(state, socket, live_packet, error))
+ 		goto out;
+ 
++	/* Keep the learned ISN until a SYNACK acknowledges this new SYN.
++	 * A retransmitted SYN from the learned handshake is not a new SYN.
++	 */
++	if (live_packet->tcp && live_packet->tcp->syn && !live_packet->tcp->ack &&
++	    (socket->state == SOCKET_PASSIVE_PACKET_RECEIVED ||
++	     socket->state == SOCKET_PASSIVE_SYNACK_SENT ||
++	     socket->state == SOCKET_PASSIVE_SYNACK_ACKED) &&
++	    (ntohl(live_packet->tcp->seq) != socket->passive_synack_seq ||
++	     socket->state == SOCKET_PASSIVE_SYNACK_ACKED ||
++	     socket->last_injected_tcp_header.rst)) {
++		socket->passive_syn_seq = ntohl(live_packet->tcp->seq);
++		socket->passive_syn_pending = true;
++	}
++
+ 	verbose_packet_dump(state, "inbound injected", live_packet,
+ 			    live_time_to_script_time_usecs(
+ 				    state, now_usecs(state)));
+--- a/gtests/net/packetdrill/socket.h
++++ b/gtests/net/packetdrill/socket.h
+@@ -90,6 +90,13 @@
+ 
+ 	/* The "live" info at runtime while executing the test */
+ 	struct socket_state live;
++
++	/* Latest new SYN and last SYN acknowledged by a learned SYNACK.
++	 * Both sequence numbers are live, in host order.
++	 */
++	u32 passive_syn_seq;
++	u32 passive_synack_seq;
++	bool passive_syn_pending;
+ 
+ 	/* We look at outgoing TCP timestamp values and learn the
+ 	 * mapping between script values and live values. We store

@@ -1,0 +1,77 @@
+// tap-echo: --buffer 1024
+// tolerance_usecs: 4000
+// Zhida's own receive window closes. tap-echo gives each connection 1024-byte buffers;
+// the SYN-ACK's window 1024 and wscale 0 show the flag reached the EchoServer. The Linux
+// client keeps its window at 0, so no echo can leave: its first 1024 bytes fill Zhida's
+// tx buffer, and every later segment stays unread, holding one RX frame. The window counts
+// free RX frames (1024-byte buffer: 6 frames), capped at the 1024-byte buffer, not unread
+// bytes: it stays 1024 until the sixth unread segment takes the last frame, and then Zhida
+// advertises window 0. Zhida answers the client's zero-window probe with an ACK of window
+// 0. When the client opens its window, the echo drains one segment per client ACK, and the
+// first segment after a frame is freed carries the reopened window. Handshake: see
+// handshake-linux-options.pkt. smoltcp 0.14.0 src/socket/tcp.rs:
+// - SYN-ACK: window min(rx window, 65535) unscaled; shift 0 because bit_length(1024) is
+//   under 16; wscale echoed since the SYN has it.
+// - First 1024 bytes: they consume the advertised receive window. EchoServer::step
+//   reads them and queues the echo; window_to_update sends a pure ACK at once with
+//   window 1024, even though the 10 ms delayed-ACK timer is still waiting. Linux v6.12
+//   tcp_receive_window subtracts bytes received since the last ACK; __tcp_cleanup_rbuf
+//   sends an ACK when a read raises that remaining window at least twofold (here 0 to
+//   1024), independently of quick-ACK mode:
+//   https://github.com/torvalds/linux/blob/v6.12/include/net/tcp.h#L813-L820
+//   https://github.com/torvalds/linux/blob/v6.12/net/ipv4/tcp.c#L1480-L1505
+//   The same dispatch arms a probe for one RTO later, 1.5 s (1.2 s + 300 ms); see
+//   peer-zero-window.pkt, whose larger receive window does not trigger an immediate update.
+//   The client opens its window at 1.46 s, before the probe is due, so no Zhida probe
+//   leaves.
+// - Next five 1024-byte segments: step cannot move them (no tx space, crates/tap-echo/src/
+//   lib.rs step), so each holds a frame. Each consumes the whole advertised window, and the
+//   free frames still allow 1024, a raise from 0, so window_to_update ACKs each at once
+//   with window 1024 (the fifth leaves one free frame, 1460 B, still capped at 1024).
+// - Sixth: it takes the last frame; the window stays 0, so only the 10 ms delayed ACK
+//   goes out, window 0.
+// - The client's probe is Linux's: no payload, sequence number one below SND.UNA. smoltcp
+//   treats a zero-length segment just left of the window as a keep-alive or window probe
+//   and answers with a challenge ACK, limited to one per 500 ms (this is the connection's
+//   first): SND.NXT, RCV.NXT, window 0.
+// - The client's window update stops Zhida's probe timer and the same turn sends the
+//   first echo segment, still window 0 (no free frame). Each client ACK frees the tx
+//   buffer; step moves the next unread segment into it and drops its frame, and the next
+//   turn sends it. Sending data comes first, so the reopened window rides on the data
+//   segments: 1024 (one or more free frames, capped at the buffer).
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 1024 <mss 1460,wscale 0,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 0
++1.2  < P. 1:1025(1024) ack 1 win 0
++0    > . 1:1(0) ack 1025 win 1024
++0    < . 1025:1025(0) ack 1 win 0
+1.3   < P. 1025:2049(1024) ack 1 win 0
++0    > . 1:1(0) ack 2049 win 1024
++0.01 < P. 2049:3073(1024) ack 1 win 0
++0    > . 1:1(0) ack 3073 win 1024
++0.01 < P. 3073:4097(1024) ack 1 win 0
++0    > . 1:1(0) ack 4097 win 1024
++0.01 < P. 4097:5121(1024) ack 1 win 0
++0    > . 1:1(0) ack 5121 win 1024
++0.01 < P. 5121:6145(1024) ack 1 win 0
++0    > . 1:1(0) ack 6145 win 1024
++0.01 < P. 6145:7169(1024) ack 1 win 0
++0.01 > . 1:1(0) ack 7169 win 0
++0.05 < . 7168:7168(0) ack 1 win 0
++0    > . 1:1(0) ack 7169 win 0
++0.05 < . 7169:7169(0) ack 1 win 502
++0    > P. 1:1025(1024) ack 7169 win 0
++0    < . 7169:7169(0) ack 1025 win 502
++0    > P. 1025:2049(1024) ack 7169 win 1024
++0    < . 7169:7169(0) ack 2049 win 502
++0    > P. 2049:3073(1024) ack 7169 win 1024
++0    < . 7169:7169(0) ack 3073 win 502
++0    > P. 3073:4097(1024) ack 7169 win 1024
++0    < . 7169:7169(0) ack 4097 win 502
++0    > P. 4097:5121(1024) ack 7169 win 1024
++0    < . 7169:7169(0) ack 5121 win 502
++0    > P. 5121:6145(1024) ack 7169 win 1024
++0    < . 7169:7169(0) ack 6145 win 502
++0    > P. 6145:7169(1024) ack 7169 win 1024
++0    < . 7169:7169(0) ack 7169 win 502

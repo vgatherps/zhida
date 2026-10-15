@@ -1,0 +1,57 @@
+// Test fast retransmit with 4 packets outstanding, receiver sending SACKs.
+// Cubic's 1 MiB initial window and the 257 << 7 = 32896-byte peer
+// window allow all four 1460-byte echoes before the first ACK.
+// In this variant the receiver does not support SACK.
+// Adapted from google/packetdrill commit 83f72d3f9085d0e26eb4d206fe4d7cfab5b6d872,
+// gtests/net/tcp/fast_retransmit/fr-4pkt.pkt (GPL-2.0-or-later: the repository's LICENSE is
+// GPLv2 and its sources grant "any later version"). Changes
+// for Zhida's packet-only runner, tap-echo being the application (README "Upstream
+// suites"):
+// - defaults.sh (Linux sysctls) and socket/setsockopt/bind/listen/accept dropped: tap-echo
+//   listens on port 8080 and accepts. The SYN goes at time 0 (upstream: 0.1 s); packetdrill
+//   requires the first event at 0.
+// - The SYN-ACK's options are written in Zhida's encoding and window scale,
+//   <mss 1460,wscale 2,eol> (Linux: <mss 1460,nop,wscale 8>).
+// - write(4, ..., 5840): Zhida only echoes, so the client sends the 5840 bytes, as four
+//   1460-byte segments 10 ms apart, and Zhida's four data segments are their echoes,
+//   each sent at once and carrying the ACK of the client segment it echoes (upstream: one
+//   5840-byte TSO burst; --strict_segments wants one line per segment). The client's
+//   segments acknowledge none of Zhida's data, so all four stay outstanding as
+//   upstream's do.
+// - The duplicate ACKs, the retransmission and the final ACK carry the client's sequence
+//   number after its data, 5841.
+// - close(): tap-echo closes only after its peer, so the client closes first: its FIN,
+//   Zhida's ACK, Zhida's FIN, the client's ACK (upstream: Zhida's FIN first).
+// Window-update ACK after the handshake: the SYN-ACK window is unscaled, capped 65535;
+// the scaled allowance, 90 frames x 1460 B capped by the 128 KiB buffer = 131072
+// (32768 << 2), is >= 2 x 65535, so Zhida sends one pure window-update ACK.
+
+0    < S 0:0(0) win 32792 <mss 1460,nop,wscale 7>
++0   > S. 0:0(0) ack 1 <mss 1460,wscale 2,eol>
++.1  < . 1:1(0) ack 1 win 257
++0   > . 1:1(0) ack 1 win 32768
+
+// Send 4 data segments.
++0   < P. 1:1461(1460) ack 1 win 257
++0   > P. 1:1461(1460) ack 1461
++.01 < P. 1461:2921(1460) ack 1 win 257
++0   > P. 1461:2921(1460) ack 2921
++.01 < P. 2921:4381(1460) ack 1 win 257
++0   > P. 2921:4381(1460) ack 4381
++.01 < P. 4381:5841(1460) ack 1 win 257
++0   > P. 4381:5841(1460) ack 5841
+
+// Get 3 ACKs.
++.1  < . 5841:5841(0) ack 1 win 257
++0   < . 5841:5841(0) ack 1 win 257
++0   < . 5841:5841(0) ack 1 win 257
+// We've received 3 duplicate ACKs, so we do a fast retransmit.
++0   > . 1:1461(1460) ack 5841
+// Receiver ACKs all data.
++.1  < . 5841:5841(0) ack 5841 win 257
+
+// Clean up.
++.1  < F. 5841:5841(0) ack 5841 win 257
++0   > . 5841:5841(0) ack 5842
++0   > F. 5841:5841(0) ack 5842
++.1  < . 5842:5842(0) ack 5842 win 257

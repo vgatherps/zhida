@@ -1,0 +1,8 @@
+// Runner self-test: handshake-linux-options.pkt with a wrong SYN-ACK window (Zhida sends
+// 65535). packetdrill must report the mismatch, so tap-echo exits 1.
+// expect-error: live packet field tcp_window: expected: 29200 (0x7210) vs actual: 65535 (0xffff)
+
+0   < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0  > S. 0:0(0) ack 1 win 29200 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0  < . 1:1(0) ack 1 win 502
++0  < R. 1:1(0) ack 1 win 0

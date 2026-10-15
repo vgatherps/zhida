@@ -1,0 +1,5 @@
+// Runner self-test: two packet events on one line, which the per-line check (one event per
+// line) must catch without the character filter's help. run.sh must refuse it unrun.
+// expect-refused: not exactly one packet event
+
+0   < S 0:0(0) win 64240 <mss 1460> +0 > S. 0:0(0) ack 1 win 65535 <mss 1460>

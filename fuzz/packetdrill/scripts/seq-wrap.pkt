@@ -1,0 +1,32 @@
+// The client's sequence numbers wrap past 2^32 mid-connection: its ISN is 300 below 2^32,
+// so its first 1000 bytes straddle the wrap and everything after lies beyond it. Zhida
+// ACKs and echoes across the wrap and closes on the wrapped FIN (RFC 9293 3.4,
+// modulo-2^32 arithmetic), as Linux does.
+// smoltcp 0.14.0 src/socket/tcp.rs; SYN-ACK and ISN conventions as in
+// handshake-linux-options.pkt, data path and close as in echo-and-close.pkt.
+// - Sequence space: packetdrill maps the client's sequence numbers, and Zhida's ACK
+//   numbers, of segments with SYN set verbatim and of all others relative to the first
+//   SYN's (packetdrill socket.h 285-295). So the SYN-ACK must ACK 4294966997, while 1:1001
+//   here is 4294966997 through 700 on the wire and ack 1001 is 701. smoltcp compares and
+//   adds sequence numbers as wrapping i32 differences (src/wire/tcp.rs SeqNumber 39-82),
+//   so its window tests (1706-1770), ACK computation (2564) and FIN handling (1992-1996)
+//   see no discontinuity.
+// - The 1000- and 10-byte echoes each fit one 1460-byte segment, the
+//   64256-byte peer window, and Cubic's 1 MiB initial window.
+// Window-update ACK after the handshake: the SYN-ACK window is unscaled, capped 65535;
+// the scaled allowance, 90 frames x 1460 B capped by the 128 KiB buffer = 131072
+// (32768 << 2), is >= 2 x 65535, so Zhida sends one pure window-update ACK.
+
+0     < S 4294966996:4294966996(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 4294966997 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    > . 1:1(0) ack 1 win 32768
++0    < P. 1:1001(1000) ack 1 win 502
++0    > P. 1:1001(1000) ack 1001 win 32768
++0    < P. 1001:1011(10) ack 1001 win 502
++0    > P. 1001:1011(10) ack 1011 win 32768
++0    < . 1011:1011(0) ack 1011 win 502
++0    < F. 1011:1011(0) ack 1011 win 502
++0    > . 1011:1011(0) ack 1012 win 32768
++0    > F. 1011:1011(0) ack 1012 win 32768
++0    < . 1012:1012(0) ack 1012 win 502

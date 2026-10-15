@@ -1,0 +1,16 @@
+// Runner self-test: packets keep the kernel's receive time. After the handshake (the
+// shim warmed Zhida's ARP cache before the script), Zhida echoes 10 bytes about 2 ms
+// after they arrive, while packetdrill sleeps until 0.05 s to send a duplicate ACK. The
+// script expects the echo at 0.05 s, so packetdrill
+// must report a timing error (run.c verify_time, 4 ms tolerance). A shim stamping packets
+// when packetdrill reads them would stamp the echo at about 0.05 s and the script would
+// pass. The duplicate ACK acknowledges nothing new and only makes packetdrill sleep.
+// The peer omits timestamps, as in handshake-linux-options.pkt.
+// expect-error: timing error: expected outbound packet at
+
+0      < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0     > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0     < . 1:1(0) ack 1 win 502
++0     < P. 1:11(10) ack 1 win 502
++0.05  < . 11:11(0) ack 1 win 502
++0     > P. 1:11(10) ack 11 win 32768

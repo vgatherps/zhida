@@ -1,0 +1,7 @@
+{
+	"url": "ws://192.0.2.1:9001",
+	"outdir": "/work/autobahn/run/client/reports",
+	"cases": ["*"],
+	"exclude-cases": [],
+	"exclude-agent-cases": {}
+}

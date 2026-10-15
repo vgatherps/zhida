@@ -1,0 +1,21 @@
+// A Linux client answers Zhida's SYN-ACK with an RST (what Linux sends for a SYN-ACK it
+// no longer wants: sequence number its ACK field, no ACK flag, no options). The listener
+// returns to Listen: the next SYN, 100 ms later, gets a SYN-ACK with a fresh ISN.
+// Handshake, ISNs and the 100 ms gap: see
+// handshake-linux-options.pkt and echo-and-close.pkt. smoltcp 0.14.0 src/socket/tcp.rs:
+// - The RST passes the ACK check on its sequence number alone (1619-1620) and lies in the
+//   window the SYN-ACK opened (1706-1711, 1740-1747). In SynReceived, for a socket that
+//   came from Listen, it restores Listen and forgets the peer (1883-1892), without a reply.
+// - The RST returns the socket to Listen through reset(); syn-no-ts-then-rst.pkt
+//   also checks that the next SYN can negotiate window scaling and SACK.
+// - The next SYN derives a fresh ISN, mapped to 0. Had the RST been ignored, the
+//   SynReceived socket would drop that SYN (no ACK, 1660-1663) and resend its first
+//   SYN-ACK 1 s later (2474-2491, 2325-2327), failing the check below.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < R 1:1(0) win 0
+
++0.1  < S 5000:5000(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 5001:5001(0) ack 1 win 502

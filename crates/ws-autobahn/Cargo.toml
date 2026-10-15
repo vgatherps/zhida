@@ -1,0 +1,15 @@
+[package]
+name = "ws-autobahn"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+stack-stream = { path = "../stack-stream" }
+dpdk-smoltcp = { path = "../dpdk-smoltcp" }
+tap-echo = { path = "../tap-echo" }
+tungstenite = "=0.30.0"
+
+[dev-dependencies]
+zhida-test-kit = { path = "../../test-support/kit" }
+zhida-test-support = { path = "../../test-support" }

@@ -1,0 +1,30 @@
+// tolerance_usecs: 4000
+// Echoes fill the peer's 2048-byte window. Cubic starts at 1 MiB, so
+// the peer window alone holds the next two echoes until ACKs slide it.
+// MSS 1024 gives two full first-flight segments. ACK 1025 releases
+// segment 3; ACK 2049 releases segment 4. Each segment empties the
+// currently sendable window; only the final one empties the TX buffer.
+// Receive window 23040 units: the peer's MSS 1024 caps each of the 90 admitted frames
+// (128 KiB / 1460) at 1024 bytes, 92160 bytes >> shift 2. The SYN-ACK stays 65535
+// (unscaled cap); 92160 < 2 x 65535, so no window-update ACK follows the handshake.
+
+0     < S 0:0(0) win 64240 <mss 1024,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 16
++0    < P. 1:1025(1024) ack 1 win 16
++0    > P. 1:1025(1024) ack 1025 win 23040
++0    < P. 1025:2049(1024) ack 1 win 16
++0    > P. 1025:2049(1024) ack 2049 win 23040
++0    < P. 2049:3073(1024) ack 1 win 16
++0.01 > . 2049:2049(0) ack 3073 win 23040
++0    < P. 3073:4097(1024) ack 1 win 16
++0.01 > . 2049:2049(0) ack 4097 win 23040
++0    < . 4097:4097(0) ack 1025 win 16
++0    > . 2049:3073(1024) ack 4097 win 23040
++0    < . 4097:4097(0) ack 2049 win 16
++0    > P. 3073:4097(1024) ack 4097 win 23040
++0    < . 4097:4097(0) ack 4097 win 16
++0    < F. 4097:4097(0) ack 4097 win 16
++0    > . 4097:4097(0) ack 4098 win 23040
++0    > F. 4097:4097(0) ack 4098 win 23040
++0    < . 4098:4098(0) ack 4098 win 16

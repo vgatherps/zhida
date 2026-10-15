@@ -1,0 +1,14 @@
+[package]
+name = "zhida-netconf"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+smoltcp = { version = "=0.14.0", path = "../../vendor/smoltcp", default-features = false }
+
+[lints]
+workspace = true

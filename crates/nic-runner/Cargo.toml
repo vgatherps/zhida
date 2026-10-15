@@ -1,0 +1,21 @@
+[package]
+name = "nic-runner"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[[bin]]
+name = "zhida-nic"
+path = "src/main.rs"
+
+[dependencies]
+binance-feed = { path = "../binance-feed" }
+zhida-open = { path = "../netconf-open" }
+zhida-netconf = { path = "../netconf" }
+dpdk-smoltcp = { path = "../dpdk-smoltcp" }
+zhida-dpdk-sys = { path = "../zhida-dpdk-sys" }
+sockperf-wire = { path = "../sockperf-wire" }
+libc = "0.2"
+
+[lints]
+workspace = true

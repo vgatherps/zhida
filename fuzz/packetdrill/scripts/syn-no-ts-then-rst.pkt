@@ -1,0 +1,19 @@
+// A listener that takes a SYN without timestamps and window scale, then an RST in
+// SYN-RECEIVED, serves the next client as a fresh listener: that client offers
+// wscale and SACK and its SYN-ACK carries both. Both SYNs omit timestamps.
+// Handshake, ISNs and the 100 ms gap: see handshake-linux-options.pkt,
+// rst-syn-received.pkt and echo-and-close.pkt; the first SYN-ACK as handshake-no-options.pkt
+// (128 KiB window unshifted, capped at 65535). Vendored smoltcp src/socket/tcp.rs:
+// - The first SYN without wscale zeroes the window shift (Listen SYN arm of process):
+//   the first SYN-ACK carries MSS only.
+// - The RST in SynReceived goes through reset() and back to Listen on the same endpoint
+//   (SynReceived RST arm of process); reset() restores the window shift the 128 KiB
+//   buffer needs, 2. The second SYN-ACK carries wscale 2 and SACK permitted.
+
+0     < S 0:0(0) win 65535 <mss 1460>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460>
++0    < R 1:1(0) win 0
+
++0.1  < S 5000:5000(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 5001:5001(0) ack 1 win 502

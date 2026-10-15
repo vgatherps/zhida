@@ -1,0 +1,15 @@
+[package]
+name = "tap-echo"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+dpdk-smoltcp = { path = "../dpdk-smoltcp" }
+zhida-buffer = { path = "../zhida-buffer" }
+zhida-dpdk-sys = { path = "../zhida-dpdk-sys" }
+
+[dev-dependencies]
+zhida-test-kit = { path = "../../test-support/kit" }
+zhida-test-support = { path = "../../test-support" }
+libc = "0.2"

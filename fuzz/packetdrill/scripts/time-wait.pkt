@@ -1,0 +1,46 @@
+// tap-echo: --close-after 10
+// TIME-WAIT lasts 10 s from its last restart. tap-echo echoes 10 bytes per connection, then
+// closes; the Linux client ACKs Zhida's FIN together with its own FIN, so Zhida enters
+// TIME-WAIT at once. 9.5 s later Zhida still re-ACKs a retransmitted client FIN, which
+// restarts the 10 s timer; 2.5 s after that, past the first timer's end, a second
+// retransmitted FIN is re-ACKed too, proving the restart. 10.5 s after that last restart
+// the socket has closed and listens again: a new SYN on the 4-tuple gets a SYN-ACK.
+// Linux keeps TIME-WAIT 60 s. No SYN is sent during TIME-WAIT here; such a SYN gets
+// a challenge ACK, as syn-in-time-wait.pkt shows. Handshake, ISNs and window
+// 32768: see handshake-linux-options.pkt and echo-and-close.pkt. smoltcp 0.14.0
+// src/socket/tcp.rs:
+// - The echo with FIN: see zhida-fin-first.pkt. The client's FIN acknowledging it:
+//   FinWait1 to TimeWait with the close timer at now + CLOSE_DELAY, 10 s (2008-2013,
+//   301, 394-397), and an immediate ACK (no payload, 2206-2209, 2524).
+// - A retransmitted FIN is one below RCV.NXT, outside the window (1724-1729): in TIME-WAIT
+//   its ACK restarts the close timer and the FIN gets an ACK without rate limiting.
+//   Once the socket has closed and listens again, the Listen socket refuses a
+//   segment with ACK (1563-1567) and the interface answers the FIN with RST 12:12
+//   (src/iface/interface/tcp.rs 43-56; rst_reply, 1459-1473), failing the ACK check. So
+//   the first re-ACK shows TIME-WAIT 0.5 s before its 10 s end, and the second shows the
+//   restart: without it the socket would have closed at 10 s.
+// - The close timer resets the socket without sending (2538-2542) at 22 s; step listens
+//   again (crates/tap-echo/src/lib.rs 96-102) and the SYN at 22.5 s gets a SYN-ACK with the
+//   fresh ISN, mapped to 0. Still in TIME-WAIT, the socket would challenge the SYN,
+//   failing the SYN-ACK check. Direct reopening from TIME-WAIT on a SYN, as Linux can
+//   do, would remove this upper-bound observation and require a different test.
+// - Margins: 0.5 s on both sides of each boundary. They only need to cover the time from
+//   packetdrill sending a packet to tap-echo's turn processing it (ms, plus serve's 1 ms
+//   idle sleep): which packet Zhida answers with decides the boundary, not a timing check.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    < P. 1:11(10) ack 1 win 502
++0    > F. 1:11(10) ack 11 win 32768
++0    < F. 11:11(0) ack 12 win 502
++0    > . 12:12(0) ack 12 win 32768
+
++9.5  < F. 11:11(0) ack 12 win 502
++0    > . 12:12(0) ack 12 win 32768
++2.5  < F. 11:11(0) ack 12 win 502
++0    > . 12:12(0) ack 12 win 32768
+
++10.5 < S 5000:5000(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 5001:5001(0) ack 1 win 502

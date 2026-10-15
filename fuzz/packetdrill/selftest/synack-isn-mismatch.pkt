@@ -1,0 +1,8 @@
+// A duplicate SYN belongs to the same handshake. Its SYN-ACK must reuse the
+// learned ISN: deliberately expect ISN + 1 and require packetdrill to reject it.
+// expect-error: live packet field tcp_seq: expected: 1
+
+0     < S 0:0(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,sackOK,eol,eol>
++0.1  < S 0:0(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 1:1(0) ack 1 win 65535 <mss 1460,sackOK,eol,eol>

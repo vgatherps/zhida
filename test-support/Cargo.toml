@@ -1,0 +1,12 @@
+[package]
+name = "zhida-test-support"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+zhida-test-support-macros = { path = "macros" }
+libc = "0.2"
+
+[dev-dependencies]
+proptest = "1.5"

@@ -1,0 +1,28 @@
+// A client that announces MSS 536 (with Linux's other SYN options) gets segments of at
+// most 536 payload bytes: Zhida honors the peer's MSS without timestamp options.
+// Its own SYN-ACK still announces 1460.
+// smoltcp 0.14.0 src/socket/tcp.rs; SYN-ACK and ISN conventions as in
+// handshake-linux-options.pkt, data path and close as in echo-and-close.pkt.
+// - SYN-ACK mss 1460: derived from the local IP MTU only (2777-2780), not the peer's MSS.
+// - Segment size: the SYN's MSS 536 becomes remote_mss; without timestamps the
+//   effective MSS, also Cubic's MSS, is min(1460, 536), i.e. 536.
+// - The 1448-byte echo fits the 64256-byte peer window and Cubic's 1 MiB
+//   initial window. MSS 536 splits it into 536, 536 and 376 bytes, all at once.
+//   No Nagle hold delays the tail; PSH marks the segment emptying the TX buffer.
+// - Windows: the peer's MSS 536, known from the SYN, caps each of the 90 admitted frames
+//   (128 KiB / 1460) at 536 bytes: 48240 bytes. The SYN-ACK sends it unscaled (under
+//   the 65535 cap), later segments as 48240 >> shift 2 = 12060. 48240 < 2 x 48240, so no
+//   window-update ACK follows the handshake.
+
+0     < S 0:0(0) win 64240 <mss 536,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 48240 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    < P. 1:1449(1448) ack 1 win 502
++0    > . 1:537(536) ack 1449 win 12060
++0    > . 537:1073(536) ack 1449 win 12060
++0    > P. 1073:1449(376) ack 1449 win 12060
++0    < . 1449:1449(0) ack 1449 win 502
++0    < F. 1449:1449(0) ack 1449 win 502
++0    > . 1449:1449(0) ack 1450 win 12060
++0    > F. 1449:1449(0) ack 1450 win 12060
++0    < . 1450:1450(0) ack 1450 win 502

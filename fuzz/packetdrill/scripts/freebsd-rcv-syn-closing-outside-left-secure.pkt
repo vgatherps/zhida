@@ -1,0 +1,66 @@
+// tap-echo: --buffer 65535 --close-after 0
+// Parsed SYN gets a challenge ACK before ACK/window validation (RFC 5961 4.2).
+// Socket::process ignores the SYN's contents and preserves the connection state;
+// challenge_ack_allowed shares the per-socket 500 ms limit. The packets after the
+// challenge ACK verify that the connection still closes normally.
+// Ensure that the reception of a TCP SYN with SEG.SEQ = RCV.NXT - 1
+// in the CLOSING state triggers the sending of a challenge ACK.
+// Adapted from freebsd-net/tcp-testsuite commit 04b8c73fc5081fe3792f1bed9168c9b22aaedddb,
+// state-event-engine/rcv-syn-closing/rcv-syn-closing-outside-left-secure-ipv4.pkt
+// (BSD-2-Clause; notice below). Changes for Zhida's packet-only runner, tap-echo
+// being the application (fuzz/packetdrill/README.md, "Upstream suites"):
+// - IPv4 variant. Dropped: sysctls, which set FreeBSD defaults and
+//   net.inet.tcp.insecure_syn=0 (RFC 5961 SYN checks on); Zhida has no such switch;
+//   fcntl; getsockopt(SO_RCVBUF); --tolerance_usecs=75000 (the runner keeps
+//   packetdrill's 4 ms); sockstat and tcpdrop commands except where replaced below.
+// - Upstream reaches the state by an active open (connect; FreeBSD's SYN, the
+//   peer's SYN-ACK <mss 1460,sackOK>, FreeBSD's ACK). tap-echo only listens, so the
+//   client opens instead: the client's SYN carries the options upstream's peer sent
+//   (same negotiated result: MSS 1460, SACK, no window scale, no timestamps), as in
+//   upstream's own passive-open scripts (rcv-rst-syn-rcvd via-listen), then Zhida's
+//   SYN-ACK and the client's ACK 0.1 s later.
+// - shutdown(SHUT_WR) becomes tap-echo --close-after 0: Zhida sends its FIN right
+//   after the handshake (upstream: 0.1 s later).
+// - Setup only: FreeBSD answers the client's FIN in FIN-WAIT-1 with FIN|ACK at seq 1 (its
+//   FIN again); Zhida answers with a pure ACK at seq 2, as Linux does (tcp_fin in
+//   FIN-WAIT-1 sends an ACK) and RFC 9293 3.10.7.4 eighth step says. A Linux-vs-FreeBSD
+//   difference, not a Zhida one; the state reached, CLOSING, is the same.
+// - Receive window: tap-echo --buffer 65535, so Zhida's RCV.WND is 65535, its
+//   advertised window (no window scale), as upstream's.
+// - getsockopt(SO_ERROR) = 0 dropped; the packets after it show the connection alive.
+//
+//
+// Copyright (c) 2016 Michael Tuexen
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+//
+// THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+// OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+// HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+// OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+// SUCH DAMAGE.
+//
+
+0     < S 0:0(0) win 32767 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,sackOK,eol,eol>
++0.10 < . 1:1(0) ack 1 win 32767
++0    > F. 1:1(0) ack 1 win 65535
++0.10 < F. 1:1(0) ack 1 win 32767
++0    > . 2:2(0) ack 2 win 65535
++0.10 < S 1:1(0) win 32767 <mss 1460,sackOK,eol,eol>
++0.00 > . 2:2(0) ack 2 win 65535
++0.00 < . 2:2(0) ack 2 win 32767

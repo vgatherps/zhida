@@ -1,0 +1,20 @@
+// SYN without ACK on an ESTABLISHED connection gets a challenge ACK before
+// ACK/window validation (RFC 5961 4.2; Socket::process, challenge_ack_reply).
+// The reply uses the current acceptable send sequence and RCV.NXT (ack_reply),
+// with a shared per-socket 500 ms limit. The SYN changes neither connection state,
+// queued data nor the peer window. The client's next data still echoes normally.
+// ISNs: see handshake-linux-options.pkt and echo-and-close.pkt.
+// TIME-WAIT challenge/reset: see syn-in-time-wait.pkt.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    < P. 1:11(10) ack 1 win 502
++0    > P. 1:11(10) ack 11 win 32768
++0    < . 11:11(0) ack 11 win 502
+
++0.1  < S 5000:5000(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > . 11:11(0) ack 11 win 32768
+
++0.1  < P. 11:21(10) ack 11 win 502
++0    > P. 11:21(10) ack 21 win 32768

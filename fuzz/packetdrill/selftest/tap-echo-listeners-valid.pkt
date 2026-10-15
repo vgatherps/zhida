@@ -1,0 +1,6 @@
+// Runner self-test: validate --listeners and pass accepted flags to tap-echo.
+// expect-error: live packet field tcp_window: expected: 29200 (0x7210) vs actual: 4096 (0x1000)
+// tap-echo: --listeners 02 --buffer 4096
+
+0   < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0  > S. 0:0(0) ack 1 win 29200 <mss 1460,wscale 0,sackOK,eol,eol,eol>

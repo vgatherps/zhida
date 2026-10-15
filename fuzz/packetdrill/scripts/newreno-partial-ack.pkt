@@ -1,0 +1,36 @@
+// Seven 1024-byte echoes form one flight without TCP timestamps.
+// The peer retains segments 1, 3, 5 and 6, leaving holes at 0, 2 and 4.
+// Three duplicate ACKs repair the first hole. Each following partial ACK
+// repairs the next hole immediately, before the 300 ms RTO.
+// Receive window 23040 units: the peer's MSS 1024 caps each of the 90 admitted frames
+// (128 KiB / 1460) at 1024 bytes, 92160 bytes >> shift 2. The SYN-ACK stays 65535
+// (unscaled cap); 92160 < 2 x 65535, so no window-update ACK follows the handshake.
+
+0     < S 0:0(0) win 64240 <mss 1024,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    < P. 1:1025(1024) ack 1 win 502
++0    > P. 1:1025(1024) ack 1025 win 23040
++0    < P. 1025:2049(1024) ack 1 win 502
++0    > P. 1025:2049(1024) ack 2049 win 23040
++0    < P. 2049:3073(1024) ack 1 win 502
++0    > P. 2049:3073(1024) ack 3073 win 23040
++0    < P. 3073:4097(1024) ack 1 win 502
++0    > P. 3073:4097(1024) ack 4097 win 23040
++0    < P. 4097:5121(1024) ack 1 win 502
++0    > P. 4097:5121(1024) ack 5121 win 23040
++0    < P. 5121:6145(1024) ack 1 win 502
++0    > P. 5121:6145(1024) ack 6145 win 23040
++0    < P. 6145:7169(1024) ack 1 win 502
++0    > P. 6145:7169(1024) ack 7169 win 23040
+
++0    < . 7169:7169(0) ack 1 win 502
++0    < . 7169:7169(0) ack 1 win 502
++0    < . 7169:7169(0) ack 1 win 502
++0    > . 1:1025(1024) ack 7169 win 23040
++0    < . 7169:7169(0) ack 2049 win 502
++0    > . 2049:3073(1024) ack 7169 win 23040
++0    < . 7169:7169(0) ack 4097 win 502
++0    > . 4097:5121(1024) ack 7169 win 23040
++0    < . 7169:7169(0) ack 7169 win 502
++0    < R. 7169:7169(0) ack 7169 win 0

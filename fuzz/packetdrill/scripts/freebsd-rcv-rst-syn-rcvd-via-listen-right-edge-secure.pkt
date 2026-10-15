@@ -1,0 +1,63 @@
+// tap-echo: --buffer 65535
+// RFC 5961 3.2 / Linux: an in-window RST away from RCV.NXT in SYN-RECEIVED gets a
+// challenge ACK and the half-open connection survives, same as the other synchronized
+// states (scripts/freebsd-rcv-rst-*-right-edge-secure.pkt). Linux's tcp_rcv_state_process
+// runs tcp_validate_incoming (tcp_input.c:5945-6032, called unconditionally before its
+// per-state switch, e.g. tcp_input.c:6801) for a SYN_RECV full socket the same as any
+// other state: an RST resets only at tp->rcv_nxt (or tcp_reset_check's RCV.NXT-1-after-FIN
+// case, or the SACK right edge); anything else in-window draws tcp_send_challenge_ack and
+// is discarded. Zhida's socket/tcp.rs process() now includes State::SynReceived in the
+// same exact-match-or-challenge-ACK RST block the other six synchronized states use
+// (tcp.rs:1883-1922); the exact-match branch resets a SYN-RECEIVED socket that came from
+// LISTEN back to LISTEN (tcp.rs:1910-1918), matching upstream's own
+// freebsd-rcv-rst-syn-rcvd-via-listen-left-edge-secure.pkt, which already asserts that for
+// an RST at RCV.NXT.
+// Ensure that the reception of a TCP RST with SEG.SEQ = RCV.NXT + RCV.WND - 1
+// in the SYN-RCVD state triggers the sending of a challenge ACK.
+// Adapted from freebsd-net/tcp-testsuite commit 04b8c73fc5081fe3792f1bed9168c9b22aaedddb,
+// state-event-engine/rcv-rst-syn-rcvd/rcv-rst-syn-rcvd-via-listen-right-edge-secure-ipv4.pkt
+// (BSD-2-Clause; notice below). Changes for Zhida's packet-only runner, tap-echo
+// being the application (fuzz/packetdrill/README.md, "Upstream suites"):
+// - IPv4 variant. Dropped: sysctls, which set FreeBSD defaults and
+//   net.inet.tcp.insecure_rst=0 (RFC 5961 RST checks on); Zhida has no such switch;
+//   fcntl; getsockopt(SO_RCVBUF); --tolerance_usecs=75000 (the runner keeps
+//   packetdrill's 4 ms); sockstat and tcpdrop commands except where replaced below.
+// - socket/bind/listen dropped: tap-echo listens on port 8080.
+// - Receive window: tap-echo --buffer 65535, so Zhida's RCV.WND is 65535, its
+//   advertised window (no window scale), as upstream's.
+//
+//
+// Copyright (c) 2016 Michael Tuexen
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+//
+// THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+// OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+// HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+// OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+// SUCH DAMAGE.
+//
+
+0     < S 0:0(0) win 32767 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,sackOK,eol,eol>
++0.10 < R 65535:65535(0) win 32767
++0.00 > . 1:1(0) ack 1 win 65535
++0.10 < . 1:1(0) ack 1 win 32767
++0.00 < F. 1:1(0) ack 1 win 32767
++0.00 > . 1:1(0) ack 2 win 65535
++0.00 > F. 1:1(0) ack 2 win 65535
++0.00 < . 2:2(0) ack 2 win 32767

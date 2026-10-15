@@ -1,0 +1,18 @@
+// Expectation follows Linux v6.12 tcp_sequence (net/ipv4/tcp_input.c): the right edge RCV.NXT+RCV.WND is acceptable, so the RST draws a challenge ACK
+// Upstream FreeBSD differs.
+// Last ACK=11 and advertised window=32768 << 2 put the right edge at 131083.
+// An RST there draws ACK=11; the RST at SEQ=10, below RCV.WUP=11, is dropped silently.
+// The connection survives both RSTs: 10 more bytes echo. Handshake and
+// scaled window: see handshake-linux-options.pkt and echo-and-close.pkt.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    < P. 1:11(10) ack 1 win 502
++0    > P. 1:11(10) ack 11 win 32768
++0    < . 11:11(0) ack 11 win 502
++0    < R. 131083:131083(0) ack 11 win 0
++0    > . 11:11(0) ack 11 win 32768
++0    < R. 10:10(0) ack 11 win 0
++0.1  < P. 11:21(10) ack 11 win 502
++0    > P. 11:21(10) ack 21 win 32768

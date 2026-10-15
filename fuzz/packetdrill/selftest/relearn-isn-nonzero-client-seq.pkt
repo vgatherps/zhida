@@ -1,0 +1,21 @@
+// Client SYN sequences are absolute; other client sequences use the first ISN.
+// Ignore a stray SYN, retain the original SYN-ACK ISN, then reopen the tuple.
+// Second-connection data and ACKs must use packetdrill's original client base.
+// expect-pass
+
+0     < S 1000:1000(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1001 win 65535 <mss 1460,sackOK,eol,eol>
++0.1  < S 5000:5000(0) win 64240 <mss 1460,sackOK,eol,eol>
++0.1  < S 1000:1000(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1001 win 65535 <mss 1460,sackOK,eol,eol>
++0    < . 1:1(0) ack 1 win 64240
++0    < R. 1:1(0) ack 1 win 0
+
++0.1  < S 5000:5000(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,sackOK,eol,eol>
++0.1  < S 5000:5000(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,sackOK,eol,eol>
++0    < . 4001:4001(0) ack 1 win 64240
++0    < P. 4001:4011(10) ack 1 win 64240
++0    > P. 1:11(10) ack 4011 win 65535
++0    < R. 4011:4011(0) ack 11 win 0

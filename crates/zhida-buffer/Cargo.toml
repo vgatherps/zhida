@@ -1,0 +1,41 @@
+[package]
+name = "zhida-buffer"
+version = "0.1.0"
+edition = "2021"
+description = "Zero-copy, refcounted buffer abstraction for TCP packet processing"
+license.workspace = true
+
+[features]
+# Enable proptest support (for property-based tests)
+proptest = ["dep:proptest", "testing"]
+# Enable testing module with shared Op/Executor types
+testing = []
+# Enable arbitrary derive for fuzzing
+arbitrary = ["dep:arbitrary", "testing"]
+
+[dependencies]
+zhida-dpdk-sys = { path = "../zhida-dpdk-sys" }
+proptest = { version = "1.5", optional = true }
+arbitrary = { version = "1.4", features = ["derive"], optional = true }
+
+[dev-dependencies]
+zhida-test-support = { path = "../../test-support" }
+criterion = "0.5"
+quickcheck = "1.0"
+quickcheck_macros = "1.0"
+# Tests, benches and doctests get the test-only EAL/pool helpers without --features.
+zhida-buffer = { path = ".", features = ["testing"] }
+
+[[test]]
+name = "props"
+path = "tests/props.rs"
+required-features = ["proptest"]
+
+[[bin]]
+name = "profile"
+path = "src/bin/profile.rs"
+required-features = ["testing"]
+
+[[bench]]
+name = "buffer"
+harness = false

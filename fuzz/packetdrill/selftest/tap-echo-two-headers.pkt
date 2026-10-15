@@ -1,0 +1,8 @@
+// Runner self-test: two tap-echo headers, each valid alone. run.sh must refuse this
+// script without running it.
+// expect-refused: more than one tap-echo header
+// tap-echo: --buffer 4096
+// tap-echo: --close-after 10
+
+0   < S 0:0(0) win 64240 <mss 1460,sackOK,TS val 1000 ecr 0,nop,wscale 7>
++0  > S. 0:0(0) ack 1 win 4096 <mss 1460,wscale 0,sackOK,TS val 100 ecr 1000,eol>

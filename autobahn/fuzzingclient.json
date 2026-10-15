@@ -1,0 +1,12 @@
+{
+	"outdir": "/work/autobahn/run/server/reports",
+	"servers": [
+		{
+			"agent": "Tungstenite",
+			"url": "ws://192.0.2.2:8080"
+		}
+	],
+	"cases": ["*"],
+	"exclude-cases": [],
+	"exclude-agent-cases": {}
+}

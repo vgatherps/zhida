@@ -1,0 +1,24 @@
+// Unacknowledged data is retransmitted after 300, 600 and 1200 ms gaps.
+// The fixed socket RTO backs off once per expiry, capped at 60 seconds.
+// The ACK at 2.2 s stops retransmission. New data arrives at 4.7 s, past
+// the 4.5 s deadline that would have fired without that ACK.
+// The 100-byte echo remains below one MSS and repeats the original segment.
+// Cubic's RTO window is one effective MSS, 1460 bytes. The 100-byte
+// retransmissions and later echo fit it without changing these packets.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    < P. 1:101(100) ack 1 win 502
++0    > P. 1:101(100) ack 101 win 32768
++0.3  > P. 1:101(100) ack 101 win 32768
++0.6  > P. 1:101(100) ack 101 win 32768
++1.2  > P. 1:101(100) ack 101 win 32768
++0.1  < . 101:101(0) ack 101 win 502
++2.5  < P. 101:201(100) ack 101 win 502
++0    > P. 101:201(100) ack 201 win 32768
++0    < . 201:201(0) ack 201 win 502
++0    < F. 201:201(0) ack 201 win 502
++0    > . 201:201(0) ack 202 win 32768
++0    > F. 201:201(0) ack 202 win 32768
++0    < . 202:202(0) ack 202 win 502

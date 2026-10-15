@@ -1,0 +1,29 @@
+// A reordered Linux-peer segment retains its payload even though its ACK is older
+// than SND.UNA (Linux tcp_ack old_ack). The peer sends the gap-fill before seeing
+// the first echo; a later segment acknowledging that echo reaches Zhida first.
+// The delayed gap-fill must advance RCV.NXT to 10 and release all six buffered bytes.
+// Its zero-window advertisement must not replace the later segment's open window.
+// smoltcp 0.14.0 src/socket/tcp.rs:
+// - process marks the ACK of 1 old after the later segment advances SND.UNA to 4;
+//   it skips ACK/window processing and adds the gap-fill to the receive assembler.
+// - Out-of-order data and gap-fills get immediate ACKs from ack_reply; with no SACK
+//   or TS negotiated there are no options. The gap-fill ACK precedes the echo.
+// - EchoServer::step drains the assembled bytes; dispatch sends the six-byte echo
+//   with PSH, since it empties the transmit buffer and no data remains in flight.
+// - SYN-ACK MSS and unscaled window as in handshake-no-options.pkt: with 128 KiB
+//   receive buffers every advertised window here is capped at 65535. The peer's
+//   MSS of 1460 fits each echo in one segment; the peer window and Cubic's
+//   1 MiB initial window allow both echoes.
+
+0     < S 0:0(0) win 65535 <mss 1460>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460>
++0    < . 1:1(0) ack 1 win 65535
++0    < P. 1:4(3) ack 1 win 65535
++0    > P. 1:4(3) ack 4 win 65535
++0.1  < P. 7:10(3) ack 4 win 65535
++0    > . 4:4(0) ack 4 win 65535
++0    < P. 4:7(3) ack 1 win 0
++0    > . 4:4(0) ack 10 win 65535
++0    > P. 4:10(6) ack 10 win 65535
++0    < . 10:10(0) ack 10 win 65535
++0    < R. 10:10(0) ack 10 win 0

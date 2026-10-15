@@ -1,0 +1,12 @@
+// Runner self-test: handshake-small-mss.pkt expecting one 1072-byte segment where Zhida
+// sends 536 + 536 + 376. Without run.sh's --strict_segments packetdrill would join the
+// first two and pass (run_packet.c 1918-1920); with it, it reports the first segment's
+// length, so tap-echo exits 1. Windows as in handshake-small-mss.pkt (48240, 12060).
+// expect-error: live packet payload: expected 1072 bytes vs actual 536 bytes
+
+0   < S 0:0(0) win 64240 <mss 536,nop,nop,sackOK,nop,wscale 7>
++0  > S. 0:0(0) ack 1 win 48240 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0  < . 1:1(0) ack 1 win 502
++0  < P. 1:1449(1448) ack 1 win 502
++0  > . 1:1073(1072) ack 1449 win 12060
++0  < R. 1449:1449(0) ack 1073 win 0

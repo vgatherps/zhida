@@ -1,0 +1,42 @@
+// The client's second segment arrives before its first: Zhida answers at once with a
+// duplicate ACK whose SACK block names the buffered segment (RFC 2018, RFC 5681 4.2), as
+// Linux does. When the first segment fills the hole, Zhida ACKs both at once and
+// echoes 2896 bytes at the right sequence positions. packetdrill sends zero payloads, so
+// the byte order itself is covered by the kernel_interop tests, not here.
+// smoltcp 0.14.0 src/socket/tcp.rs; SYN-ACK and ISN conventions as in
+// handshake-linux-options.pkt, data path and close as in echo-and-close.pkt.
+// - Segment 2: in window (1754-1759), so its payload goes into the assembler at offset
+//   1448 and the rx buffer ahead of the enqueued data, contiguous length 0 (2211-2242).
+//   Nothing is enqueued, so no delayed-ACK timer (2254-2257, 2383-2389); a non-empty
+//   assembler makes process return an immediate ACK (2278-2286): seq and ack unchanged,
+//   window 32768 (only enqueued bytes shrink it, 764-765), SACK block 1449:2897, the
+//   assembler range holding the segment's seq (local_rx_last_seq, 1779, 1508-1515).
+//   Options: SACK occupies 10 bytes, padded to 12 with two EOL bytes
+//   (src/wire/tcp.rs header_len and emit).
+// - Segment 1: the assembler had a hole before, so again an immediate ACK (2281), now
+//   for both segments, 2897, without SACK (assembler empty, 1517-1531), window 32120:
+//   the window counts free RX frames, not unread bytes, and the two stored segments
+//   take two of the 90 frames, so 88 x 1460 B = 128480 (>> 2 = 32120); step has not
+//   read them yet.
+// - Cubic's 1 MiB initial window and the 64256-byte peer window allow
+//   the complete 2896-byte echo: 1460 bytes followed immediately by 1436.
+//   The second segment carries PSH because it empties the TX buffer.
+// Window-update ACK after the handshake: the SYN-ACK window is unscaled, capped 65535;
+// the scaled allowance, 90 frames x 1460 B capped by the 128 KiB buffer = 131072
+// (32768 << 2), is >= 2 x 65535, so Zhida sends one pure window-update ACK.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    > . 1:1(0) ack 1 win 32768
++0.1  < P. 1449:2897(1448) ack 1 win 502
++0    > . 1:1(0) ack 1 win 32768 <sack 1449:2897,eol,eol>
++0    < . 1:1449(1448) ack 1 win 502
++0    > . 1:1(0) ack 2897 win 32120
++0    > . 1:1461(1460) ack 2897 win 32768
++0    > P. 1461:2897(1436) ack 2897 win 32768
++0    < . 2897:2897(0) ack 2897 win 502
++0    < F. 2897:2897(0) ack 2897 win 502
++0    > . 2897:2897(0) ack 2898 win 32768
++0    > F. 2897:2897(0) ack 2898 win 32768
++0    < . 2898:2898(0) ack 2898 win 502

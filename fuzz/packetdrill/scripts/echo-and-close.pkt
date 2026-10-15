@@ -1,0 +1,69 @@
+// A Linux client sends 1000 bytes and gets them back, then closes; Zhida ACKs the FIN,
+// sends its own FIN and listens again: a second connection on the same 4-tuple gets a
+// SYN-ACK and echoes 10 bytes, and after the client's RST a third SYN gets a SYN-ACK
+// (proving the RST was processed). The data segments carry the handshake's ACK too, so the
+// echoes do not show the bare ACK alone was processed; handshake-linux-options.pkt does.
+// packetdrill fills inbound payloads with zero bytes, so echoes check length and sequence
+// position only; echoed content is covered by the kernel_interop tests. smoltcp 0.14.0
+// src/socket/tcp.rs unless noted; EchoServer and serve are
+// crates/tap-echo/src/lib.rs; Stack::turn is crates/dpdk-smoltcp/src/stack.rs, which runs
+// Stack::ingress then Stack::egress.
+// - SYN-ACK options: see handshake-linux-options.pkt. The peer omits timestamps,
+//   so Zhida sends no timestamp options.
+// - Payload sizes: smoltcp's effective MSS is min(1460, Linux's 1460), i.e. 1460
+//   (2313-2320); 1000 and 10 bytes stay one segment each.
+// - Data: no separate ACK. The 1000 bytes start the 10 ms delayed-ACK timer (300, 617,
+//   2254-2262), so that turn's egress sends nothing; EchoServer::step then moves them to
+//   the tx buffer, and the next turn sends them (2521) with the ACK piggybacked, PSH
+//   because they empty the tx buffer in Established (2726-2730).
+// - Window 32768 after the handshake: rx window (128 KiB, emptied by step) >> shift 2
+//   (764-765, 2565).
+// - Close: a FIN carries no payload, so process returns before the delayed-ACK code
+//   (2207-2208) and the timer stays Idle, which counts as expired (2377). The same turn's
+//   egress therefore sends a pure ACK of the FIN (2524). Then step sees CloseWait with
+//   nothing left to read and calls close() (lib.rs 134-137, tcp.rs 1094), and the next
+//   turn sends FIN|ACK (2726-2727). The client's ACK closes the socket (LastAck 2040-2043)
+//   and step listens again (lib.rs 96-102); otherwise the second SYN would meet the LastAck
+//   socket, which drops a segment without ACK (1660-1663), and packetdrill would time out
+//   waiting for the SYN-ACK.
+// - Each handshake: tap-echo uses OS entropy for the interface seed; smoltcp derives
+//   its ISN from a keyed tuple hash plus a 4 us clock (RFC 6528). Patched packetdrill
+//   learns each new handshake's server ISN and maps it to 0; subsequent server
+//   sequence numbers and client ACKs are offsets from that ISN. SYN-ACK
+//   retransmissions in the same handshake must keep the learned ISN. Client SYN
+//   sequence numbers remain absolute, with later client sequences relative to its
+//   first ISN (0 here).
+// - The RST closes the socket (1895-1900) and step listens again; otherwise the third SYN
+//   would be dropped by the established socket (1660-1663) and packetdrill would time out.
+// - The client waits 100 ms before each new SYN so that the packet closing the previous
+//   connection and the SYN are not processed in one turn's ingress: the SYN would reach
+//   tap-echo's single listener while it is closed, before step listens again (lib.rs
+//   174-175). smoltcp 0.14 has no accept backlog, so such a SYN is refused with RST
+//   (src/iface/interface/tcp.rs 43-56); Linux queues it on the listener. Temporary, until
+//   Zhida's smoltcp fork.
+// - Window update after each handshake: the SYN-ACK window is unscaled, capped 65535;
+//   the scaled allowance is 90 frames x 1460 B capped by the 128 KiB buffer = 131072
+//   (32768 << 2) >= 2 x 65535, so Zhida sends one pure window-update ACK.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    > . 1:1(0) ack 1 win 32768
++0    < P. 1:1001(1000) ack 1 win 502
++0    > P. 1:1001(1000) ack 1001 win 32768
++0    < . 1001:1001(0) ack 1001 win 502
++0    < F. 1001:1001(0) ack 1001 win 502
++0    > . 1001:1001(0) ack 1002 win 32768
++0    > F. 1001:1001(0) ack 1002 win 32768
++0    < . 1002:1002(0) ack 1002 win 502
+
++0.1  < S 5000:5000(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 5001:5001(0) ack 1 win 502
++0    > . 1:1(0) ack 5001 win 32768
++0    < P. 5001:5011(10) ack 1 win 502
++0    > P. 1:11(10) ack 5011 win 32768
++0    < R. 5011:5011(0) ack 11 win 0
+
++0.1  < S 9000:9000(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 9001 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>

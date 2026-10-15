@@ -1,0 +1,34 @@
+// Verify behavior for the sequence: remote side sends FIN, then we close().
+// Since the remote side (client) closes first, we test our LAST_ACK code path.
+// Adapted from google/packetdrill commit 83f72d3f9085d0e26eb4d206fe4d7cfab5b6d872,
+// gtests/net/tcp/close/close-remote-fin-then-close.pkt (GPL-2.0-or-later: the repository's
+// LICENSE is GPLv2 and its sources grant "any later version"). Changes for Zhida's
+// packet-only runner, tap-echo being the application
+// (README "Upstream suites"):
+// - defaults.sh (Linux sysctls) and socket/setsockopt/bind/listen/accept dropped: tap-echo
+//   listens on port 8080 and accepts.
+// - The SYN-ACK's options are written in Zhida's encoding and window scale,
+//   <mss 1460,wscale 2,sackOK,eol,eol,eol> (Linux: <mss 1460,nop,nop,sackOK,nop,wscale 8>):
+//   Zhida's shift follows its 128 KiB receive buffer, Linux's its tcp_rmem.
+// - read() = 0 then close() 10 ms later: tap-echo closes as soon as the peer has closed
+//   and nothing is left to echo, so Zhida's FIN follows its ACK of the client's FIN at
+//   once (upstream: 10 ms later).
+
+0    < S 0:0(0) win 32792 <mss 1000,sackOK,nop,nop,nop,wscale 7>
++0   > S. 0:0(0) ack 1 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0   < . 1:1(0) ack 1 win 257
+
+// Client closes first.
++.01 < F. 1:1(0) ack 1 win 257
++0   > . 1:1(0) ack 2
+
+// Then we close.
++0   > F. 1:1(0) ack 2
+
+// Client ACKs our FIN.
++.01 < . 2:2(0) ack 2 win 257
+
+// Verify that we send RST in response to any incoming segments
+// (because the kernel no longer has any record of this socket).
++.01 < . 2:2(0) ack 2 win 257
++0   > R 2:2(0)

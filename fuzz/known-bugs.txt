@@ -1,0 +1,2 @@
+# Known-bug repros, run by fuzz/known-bugs.sh (make docker-known-bugs); each fails while
+# its bug exists. The fix of a bug deletes its lines. Format: fuzz/known-bugs.sh header.

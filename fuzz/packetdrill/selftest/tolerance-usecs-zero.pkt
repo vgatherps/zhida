@@ -1,0 +1,6 @@
+// Runner self-test: a zero tolerance_usecs value must be refused without running.
+// tolerance_usecs: 0
+// expect-refused: tolerance_usecs header needs a positive integer
+
+0   < S 0:0(0) win 64240 <mss 1460,sackOK,TS val 1000 ecr 0,nop,wscale 7>
++0  > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,TS val 100 ecr 1000,eol>

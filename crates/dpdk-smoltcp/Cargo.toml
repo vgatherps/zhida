@@ -1,0 +1,48 @@
+[package]
+name = "dpdk-smoltcp"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[features]
+bench-offload = []
+
+[dependencies]
+smoltcp = { version = "=0.14.0", path = "../../vendor/smoltcp", default-features = false, features = ["udp-set", "auto-icmp-echo-reply"] }
+zhida-buffer = { path = "../zhida-buffer" }
+zhida-dpdk-sys = { path = "../zhida-dpdk-sys" }
+
+[dev-dependencies]
+zhida-test-kit = { path = "../../test-support/kit" }
+zhida-test-support = { path = "../../test-support" }
+criterion = "0.5"
+libc = "0.2"
+
+[[bench]]
+name = "ring"
+harness = false
+
+[[bench]]
+name = "stack"
+harness = false
+
+[[bench]]
+name = "scaling"
+harness = false
+
+[[bench]]
+name = "neighbor"
+harness = false
+
+[[bench]]
+name = "emit"
+harness = false
+
+[[bench]]
+name = "rx"
+harness = false
+
+[[bench]]
+name = "udp"
+harness = false
+required-features = ["bench-offload"]

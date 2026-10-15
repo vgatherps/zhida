@@ -1,0 +1,27 @@
+// tolerance_usecs: 4000
+// A client advertises a zero window while sending 1000 bytes for echo.
+// Zhida sends the delayed ACK after 10 ms, then the first probe 290 ms
+// later. Further probes follow after 600 and 1200 ms gaps.
+// Each successful probe advances the shared RTO backoff. The client's
+// duplicate ACKs neither advance SND.UNA nor reopen the window, so they
+// leave the backoff and deadline unchanged. An accepted zero-to-positive
+// window update resets backoff and releases all 1000 queued bytes.
+// Window-update ACK after the handshake: the SYN-ACK window is unscaled, capped 65535;
+// the scaled allowance, 90 frames x 1460 B capped by the 128 KiB buffer = 131072
+// (32768 << 2), is >= 2 x 65535, so Zhida sends one pure window-update ACK.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    > . 1:1(0) ack 1 win 32768
++1.2  < P. 1:1001(1000) ack 1 win 0
++0.01 > . 1:1(0) ack 1001 win 32768
++0.29 > . 1:2(1) ack 1001 win 32768
++0    < . 1001:1001(0) ack 1 win 0
++0.6  > . 1:2(1) ack 1001 win 32768
++0    < . 1001:1001(0) ack 1 win 0
++1.2  > . 1:2(1) ack 1001 win 32768
++0    < . 1001:1001(0) ack 1 win 0
++0.5  < . 1001:1001(0) ack 1 win 502
++0    > P. 1:1001(1000) ack 1001 win 32768
++0    < . 1001:1001(0) ack 1001 win 502

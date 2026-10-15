@@ -1,0 +1,20 @@
+// Relearn the random server ISN for a second connection on the same 4-tuple.
+// Each handshake retransmits its SYN-ACK after a duplicate SYN; its ISN stays 0
+// relative to that handshake. Data and ACKs use the second handshake's mapping.
+// expect-pass
+
+0     < S 0:0(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,sackOK,eol,eol>
++0.1  < S 0:0(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,sackOK,eol,eol>
++0    < . 1:1(0) ack 1 win 64240
++0    < R. 1:1(0) ack 1 win 0
+
++0.1  < S 5000:5000(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,sackOK,eol,eol>
++0.1  < S 5000:5000(0) win 64240 <mss 1460,sackOK,eol,eol>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,sackOK,eol,eol>
++0    < . 5001:5001(0) ack 1 win 64240
++0    < P. 5001:5011(10) ack 1 win 64240
++0    > P. 1:11(10) ack 5011 win 65535
++0    < R. 5011:5011(0) ack 11 win 0

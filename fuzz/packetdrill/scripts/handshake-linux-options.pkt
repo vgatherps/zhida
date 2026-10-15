@@ -1,0 +1,45 @@
+// A Linux client's SYN (mss 1460, sackOK, nop, wscale 7, without timestamps)
+// gets Zhida's SYN-ACK; the client's bare ACK completes the handshake; the client's RST
+// closes the connection, which a SYN-ACK to a new SYN on the same 4-tuple proves.
+// The bare ACK is observable: sending the SYN-ACK (one sequence number) starts the
+// retransmit timer at the RTO (2838-2843), initially 1000 ms (RTTE_INITIAL_RTO, 144; 184).
+// The client then waits 1.5 s before sending data. Had the ACK been ignored, the SYN-ACK
+// would still be unacknowledged and Zhida would retransmit it at about 1 s, an
+// unexpected packet that fails the script. The echo of 10 bytes alone would not prove it:
+// the data segment carries the same ACK.
+// Zhida's SYN-ACK, from smoltcp 0.14.0 src/socket/tcp.rs:
+// - window 65535: SYNs carry the unscaled rx window capped at u16::MAX (2603-2604); the
+//   EchoServer rx buffer is 128 KiB.
+// - mss 1460: ip_mtu 1500 - 20 - 20 (2779-2780); the option is not reduced for timestamps.
+// - wscale 2: echoed because the SYN has wscale (1923, 2611); shift is
+//   bit_length(131072) - 16, i.e. 2 (587, 608).
+// - sackOK: echoed because the SYN has sackOK (1922, 2610).
+// - The peer's SYN omits timestamps, so Socket::process disables the connection's
+//   timestamp generator. Zhida sends no timestamp option on any segment.
+// - Option order is mss, wscale, sackOK, then EOL padding to a 4-byte multiple:
+//   4 + 3 + 2 = 9 option bytes, padded to 12 with three EOL bytes. Later segments
+//   without SACK blocks have no options (src/wire/tcp.rs header_len and emit).
+// - ISN: any; patched packetdrill maps each handshake's SYN-ACK sequence number to 0.
+// The echo: see echo-and-close.pkt (delayed ACK piggybacked on PSH data, window 32768).
+// The RST moves the socket to Closed (1895-1900); EchoServer::step listens again
+// (crates/tap-echo/src/lib.rs 96-102). Had the RST been dropped, the SYN would meet an
+// established connection, which drops a segment without ACK (1660-1663, the known bug in
+// known-bugs/syn-on-established.pkt), and packetdrill would time out waiting for the
+// SYN-ACK. The 100 ms gap keeps the RST and the SYN out of one turn's ingress (see
+// echo-and-close.pkt: smoltcp 0.14 has no accept backlog, so with one listener a SYN in
+// the RST's turn gets an RST; temporary, until Zhida's smoltcp fork). The second
+// SYN-ACK's fresh ISN is mapped to 0 for this handshake (see echo-and-close.pkt).
+// Window-update ACK after the handshake: the SYN-ACK window is unscaled, capped 65535;
+// the scaled allowance, 90 frames x 1460 B capped by the 128 KiB buffer = 131072
+// (32768 << 2), is >= 2 x 65535, so Zhida sends one pure window-update ACK.
+
+0     < S 0:0(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 1 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>
++0    < . 1:1(0) ack 1 win 502
++0    > . 1:1(0) ack 1 win 32768
++1.5  < P. 1:11(10) ack 1 win 502
++0    > P. 1:11(10) ack 11 win 32768
++0    < R. 11:11(0) ack 11 win 0
+
++0.1  < S 5000:5000(0) win 64240 <mss 1460,nop,nop,sackOK,nop,wscale 7>
++0    > S. 0:0(0) ack 5001 win 65535 <mss 1460,wscale 2,sackOK,eol,eol,eol>

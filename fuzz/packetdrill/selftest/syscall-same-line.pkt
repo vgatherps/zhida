@@ -1,0 +1,6 @@
+// Runner self-test: a syscall after a packet on the same line (packetdrill ignores
+// newlines). run.sh must refuse this script without running it.
+// expect-refused: :5: contains
+
+0   < S 0:0(0) win 64240 <mss 1460> +0 close(3) = 0
++0  > S. 0:0(0) ack 1 win 65535 <mss 1460>
